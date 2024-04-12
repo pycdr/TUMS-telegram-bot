@@ -1,0 +1,210 @@
+import json
+from typing import List, Union, Dict, Tuple, Union
+from telegram import (
+    InputMediaDocument, Message, Chat, 
+    InlineKeyboardButton, InlineKeyboardMarkup, 
+    InlineQueryResultArticle, InputTextMessageContent, 
+    InlineQueryResultCachedDocument, 
+)
+
+__all__ = [
+    "get_value", "edit_inline_keyboard", "send_message_by_props", 
+    "load_query", "dump_query", "EmptyProps", "load_json", 
+    "inline_query_search", 
+]
+
+NORMALIZE_TABLE = {
+    '«': '<',
+    '»': '>',
+    '×': 'x',
+    '،': ',',
+    '؟': '?',
+    'آ': 'ا',
+    'أ': 'ا',
+    'ؤ': 'و',
+    'إ': 'ا',
+    'ئ': 'ی',
+    'ة': 'ه',
+    'ك': 'ک',
+    'ي': 'ی',
+    '٪': '%',
+    '٫': '/',
+    '٬': ',',
+    '\u200c': ' ', 
+}
+NORMALIZE_ESCAPE = {'َ', 'ٓ', 'ـ', 'ّ', 'ِ', 'ٌ', 'ٰ', 'ٔ', 'ٍ', 'ْ', 'ً', 'ُ', 'ء'}
+for escape in NORMALIZE_ESCAPE:
+    NORMALIZE_TABLE[escape] = None
+NORMALIZE_TABLE = {ord(k):(ord(v) if v else None) for k,v in NORMALIZE_TABLE.items()}
+def normalize_text(text: str) -> str:
+    return text.translate(NORMALIZE_TABLE)
+
+class InlineQuerySearch:
+    EXCEPTION_DATA_MAIN_KEYS = ["dialog"]
+    def __init__(self):
+        pass
+    def update_data(self, data: dict):
+        self.main_data = data
+        self.unnesting_data_path, self.unnesting_data_text = self.generate_unnesting_data(data)
+        self.unnesting_data_text = list(map(normalize_text, self.unnesting_data_text))
+    def generate_unnesting_data(self, data: dict, main = True) -> Tuple[List[str],List[str]]:
+        new_unnesting_data_path = []
+        new_unnesting_data_text = []
+        keys = list(data.keys())
+        if main:
+            for exception in self.EXCEPTION_DATA_MAIN_KEYS:
+                keys.remove(exception)
+        else:
+            keys.remove("IK_TEXT")
+        for key in keys:
+            if not any(type(v) is dict for v in data[key].values()):
+                if self.is_empty_data(data[key]):
+                    continue
+                new_unnesting_data_path.append(key)
+                new_unnesting_data_text.append(data[key]["IK_TEXT"])
+            else:
+                for subpath, subname in zip(*self.generate_unnesting_data(data[key], main=False)):
+                    new_unnesting_data_path.append(key+':'+subpath)
+                    new_unnesting_data_text.append(subname+','+data[key]["IK_TEXT"])
+        return new_unnesting_data_path, new_unnesting_data_text
+    def is_empty_data(self, data: Dict[str, str]) -> bool:
+        if data.keys() == {"IK_TEXT"}:
+            return True
+        if data.get("TYPE") in ("document", "audio", "video"):
+            if not data.get("FILE_ID"):
+                return True
+        elif data.get("TYPE") == "message":
+            if not data.get("MESSAGE"):
+                return True
+        return False
+    def find_keywords(self, search: str) -> List[InlineQueryResultArticle]:
+        """WARN: this mothed does not use standard algorithms for now."""
+        keywords = normalize_text(search).split()
+        result_index = [
+            index
+            for index, value in enumerate(self.unnesting_data_text)
+            if all(keyword in value for keyword in keywords)
+        ]
+        result_path = [self.unnesting_data_path[index] for index in result_index]
+        result_text = [self.unnesting_data_text[index] for index in result_index]
+        result_article = []
+        for path, text in zip(result_path, result_text):
+            article = self.generate_article_by_data(
+                path, 
+                text, 
+                self.find_data_by_path(*path.split(':'))
+            )
+            if not article:
+                continue
+            if type(article) is list:
+                result_article += article # add a list of articles
+            else:
+                result_article.append(article)
+        return result_article
+    def find_data_by_path(self, *path: Tuple[str]) -> Dict:
+        return self._find_in_data_by_path(path, data = self.main_data)
+    def _find_in_data_by_path(self, path: Tuple[str], data: dict) -> Dict:
+        if not path:
+            return data
+        return self._find_in_data_by_path(path[1:], data=data[path[0]])
+    def generate_article_by_data(self, path: str, text: str, data: Dict[str, str]) -> Union[InlineQueryResultArticle, List[InlineQueryResultArticle]]:
+        if data.get("TYPE") == "message" and data.get("MESSAGE"):
+            return InlineQueryResultArticle(
+                id=path, 
+                title=data.get("IQ_TITLE") or text, 
+                input_message_content=InputTextMessageContent(data.get("MESSAGE")), 
+                description=data.get("MESSAGE"), 
+            )
+        elif data.get("TYPE") == "document" and data.get("FILE_ID"):
+            if type(data["FILE_ID"]) is str:
+                return InlineQueryResultCachedDocument(
+                    id=path, 
+                    title=data.get("IQ_TITLE") or text, 
+                    document_file_id=data.get("FILE_ID"), 
+                    caption=data.get("CAPTION"), 
+                )
+            else:
+                captions = data.get("CAPTION")
+                if type(captions) is str:
+                    captions = [captions]*len(data.get("FILE_ID"))
+                return [
+                    InlineQueryResultCachedDocument(
+                        id=path+f":{index}", 
+                        title=data.get("IQ_TITLE") or text, 
+                        document_file_id=file_id, 
+                        caption=caption, 
+                    )
+                    for index, (file_id, caption) in enumerate(zip(data.get("FILE_ID"), captions))
+                ]
+
+inline_query_search = InlineQuerySearch()
+
+class EmptyProps(Exception):
+    pass
+
+def get_value(d: dict, keys: List[str]) -> dict:
+    if keys:
+        return get_value(d[keys[0]], keys[1:])
+    return d
+
+async def edit_inline_keyboard(data: Dict[str, Union[Dict, List]], keys: List[str], message: Message) -> None:
+    value = get_value(data, keys)
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                text=value[key]["IK_TEXT"], 
+                callback_data=dump_query(":".join(keys + [key]), code="get")
+            )
+        ]
+        for key in value if key != "IK_TEXT" and not (not keys and key=="dialog")
+    ]
+    if not keys:
+        pass
+    elif len(keys)==1:
+        keyboard.append([InlineKeyboardButton(
+            text=data["dialog"]["back_to_previous_menu"], 
+            callback_data=dump_query(":", code="get")
+        )])
+    else:
+        keyboard.append([InlineKeyboardButton(
+            text=data["dialog"]["back_to_previous_menu"], 
+            callback_data=dump_query(":".join(keys[:-1]), code="get")
+        )])
+    inline_keyboard = InlineKeyboardMarkup(keyboard)
+    await message.edit_reply_markup(inline_keyboard)
+
+async def send_message_by_props(props: Dict[str, str], chat: Chat) -> None:
+    props = props.copy()
+    if props["TYPE"] == "document":
+        if not props.get("FILE_ID"):
+            raise EmptyProps
+        if type(props["FILE_ID"]) is str:
+            await chat.send_document(
+                document=props["FILE_ID"], 
+                caption=props["CAPTION"], 
+            )
+            return
+        if type(props["CAPTION"]) is str:
+            props["CAPTION"] = ['']*(len(props["FILE_ID"])-1) + [props["CAPTION"]]
+        media = [
+            InputMediaDocument(media=file_id, caption=caption)
+            for file_id, caption in zip(props["FILE_ID"], props["CAPTION"])
+        ]
+        await chat.send_media_group(media)
+    elif props["TYPE"] == "message":
+        if not props.get("MESSAGE"):
+            raise EmptyProps
+        await chat.send_message(
+            text=props["MESSAGE"]
+        )   
+
+def load_query(data: str) -> str:
+    return data[3:]
+
+def dump_query(text: str, code:str) -> str:
+    return code+text
+
+def load_json(path: str) -> dict:
+    data = json.load(open(path))
+    inline_query_search.update_data(data)
+    return data
