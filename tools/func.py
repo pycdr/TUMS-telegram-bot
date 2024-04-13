@@ -147,6 +147,15 @@ def get_value(d: dict, keys: List[str]) -> dict:
         return get_value(d[keys[0]], keys[1:])
     return d
 
+def get_path_name(data: Dict[str, Union[Dict, List]], keys: List[str]) -> str:
+    names = []
+    keys = keys.copy()
+    while keys:
+        names.append(data[keys[0]]["IK_TEXT"])
+        data = data[keys[0]]
+        del keys[0]
+    return '\n'.join('🔻 '+name for name in names)
+
 async def edit_inline_keyboard(data: Dict[str, Union[Dict, List]], keys: List[str], message: Message) -> None:
     value = get_value(data, keys)
     keyboard = [
@@ -171,7 +180,11 @@ async def edit_inline_keyboard(data: Dict[str, Union[Dict, List]], keys: List[st
             callback_data=dump_query(":".join(keys[:-1]), code="get")
         )])
     inline_keyboard = InlineKeyboardMarkup(keyboard)
-    await message.edit_reply_markup(inline_keyboard)
+    await message.edit_text(
+        data["dialog"]["state_text_template"].format(path=get_path_name(data, keys))
+        if keys else data["dialog"]["start_title"], 
+        reply_markup=inline_keyboard, 
+    )
 
 async def send_message_by_props(props: Dict[str, str], chat: Chat) -> None:
     props = props.copy()
