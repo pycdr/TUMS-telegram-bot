@@ -1,10 +1,12 @@
 import json
 from typing import List, Union, Dict, Tuple, Union
 from telegram import (
-    InputMediaDocument, Message, Chat, 
+    Message, Chat, 
     InlineKeyboardButton, InlineKeyboardMarkup, 
     InlineQueryResultArticle, InputTextMessageContent, 
     InlineQueryResultCachedDocument, 
+    InputMediaDocument, InputMediaAudio, 
+    InlineQueryResultCachedAudio, 
 )
 
 __all__ = [
@@ -78,7 +80,7 @@ class InlineQuerySearch:
                 return True
         return False
     def find_keywords(self, search: str) -> List[InlineQueryResultArticle]:
-        """WARN: this mothed does not use standard algorithms for now."""
+        """WARN: this mothed does not use usual/standard search algorithms for now."""
         keywords = normalize_text(search).split()
         result_index = [
             index
@@ -116,6 +118,27 @@ class InlineQuerySearch:
                 description=data.get("MESSAGE"), 
             )
         elif data.get("TYPE") == "document" and data.get("FILE_ID"):
+            if type(data["FILE_ID"]) is str:
+                return InlineQueryResultCachedDocument(
+                    id=path, 
+                    title=data.get("IQ_TITLE") or text, 
+                    document_file_id=data.get("FILE_ID"), 
+                    caption=data.get("CAPTION"), 
+                )
+            else:
+                captions = data.get("CAPTION")
+                if type(captions) is str:
+                    captions = [captions]*len(data.get("FILE_ID"))
+                return [
+                    InlineQueryResultCachedDocument(
+                        id=path+f":{index}", 
+                        title=data.get("IQ_TITLE") or text, 
+                        document_file_id=file_id, 
+                        caption=caption, 
+                    )
+                    for index, (file_id, caption) in enumerate(zip(data.get("FILE_ID"), captions))
+                ]
+        elif data.get("TYPE") == "audio" and data.get("FILE_ID"):
             if type(data["FILE_ID"]) is str:
                 return InlineQueryResultCachedDocument(
                     id=path, 
@@ -209,7 +232,23 @@ async def send_message_by_props(props: Dict[str, str], chat: Chat) -> None:
             raise EmptyProps
         await chat.send_message(
             text=props["MESSAGE"]
-        )   
+        )
+    elif props["TYPE"] == "audio":
+        if not props.get("FILE_ID"):
+            raise EmptyProps
+        if type(props["FILE_ID"]) is str:
+            await chat.send_audio(
+                audio=props["FILE_ID"], 
+                caption=props["CAPTION"], 
+            )
+            return
+        if type(props["CAPTION"]) is str:
+            props["CAPTION"] = ['']*(len(props["FILE_ID"])-1) + [props["CAPTION"]]
+        media = [
+            InputMediaAudio(media=file_id, caption=caption)
+            for file_id, caption in zip(props["FILE_ID"], props["CAPTION"])
+        ]
+        await chat.send_media_group(media)
 
 def load_query(data: str) -> str:
     return data[3:]
