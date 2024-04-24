@@ -15,7 +15,10 @@ __all__ = [
     "get_value", "edit_inline_keyboard", "send_message_by_props", 
     "load_query", "dump_query", "EmptyProps", "load_json", 
     "inline_query_search", "cache_users_data", 
+    "SPLIT_CALLBACK_QUERY", 
 ]
+
+SPLIT_CALLBACK_QUERY = "=" # because of /start command, we prefer to use this character
 
 NORMALIZE_TABLE = {
     '«': '<',
@@ -68,7 +71,7 @@ class InlineQuerySearch:
                 new_unnesting_data_text.append(data[key]["IK_TEXT"])
             else:
                 for subpath, subname in zip(*self.generate_unnesting_data(data[key], main=False)):
-                    new_unnesting_data_path.append(key+':'+subpath)
+                    new_unnesting_data_path.append(key+SPLIT_CALLBACK_QUERY+subpath)
                     new_unnesting_data_text.append(subname+','+data[key]["IK_TEXT"])
         return new_unnesting_data_path, new_unnesting_data_text
     def is_empty_data(self, data: Dict[str, str]) -> bool:
@@ -96,7 +99,7 @@ class InlineQuerySearch:
             article = self.generate_article_by_data(
                 path, 
                 text, 
-                self.find_data_by_path(*path.split(':'))
+                self.find_data_by_path(*path.split(SPLIT_CALLBACK_QUERY))
             )
             if not article:
                 continue
@@ -187,7 +190,7 @@ async def edit_inline_keyboard(data: Dict[str, Union[Dict, List]], keys: List[st
         [
             InlineKeyboardButton(
                 text=value[key]["IK_TEXT"], 
-                callback_data=dump_query(":".join(keys + [key]), code="get")
+                callback_data=dump_query(SPLIT_CALLBACK_QUERY.join(keys + [key]), code="get")
             )
         ]
         for key in value if key != "IK_TEXT" and not (not keys and key=="init")
@@ -197,12 +200,12 @@ async def edit_inline_keyboard(data: Dict[str, Union[Dict, List]], keys: List[st
     elif len(keys)==1:
         keyboard.append([InlineKeyboardButton(
             text=data["init"]["dialog"]["back_to_previous_menu"], 
-            callback_data=dump_query(":", code="get")
+            callback_data=dump_query(SPLIT_CALLBACK_QUERY, code="get")
         )])
     else:
         keyboard.append([InlineKeyboardButton(
             text=data["init"]["dialog"]["back_to_previous_menu"], 
-            callback_data=dump_query(":".join(keys[:-1]), code="get")
+            callback_data=dump_query(SPLIT_CALLBACK_QUERY.join(keys[:-1]), code="get")
         )])
     inline_keyboard = InlineKeyboardMarkup(keyboard)
     await message.edit_text(

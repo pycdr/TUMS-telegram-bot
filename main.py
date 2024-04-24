@@ -32,13 +32,13 @@ data = load_json(getenv("DATA_PATH"))
 async def get_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     query_data = load_query(query.data)
-    if query_data == ':':
+    if query_data == SPLIT_CALLBACK_QUERY:
         keys=[]
-    elif not fullmatch(r'\w+(?::\w+)*', query_data):
+    elif not fullmatch(fr'\w+(?:{SPLIT_CALLBACK_QUERY}\w+)*', query_data):
         await query.answer(data["init"]["dialog"]["error_bad_callback_query"])
         return
     else:
-        keys = query_data.split(':')
+        keys = query_data.split(SPLIT_CALLBACK_QUERY)
     res = get_value(data, keys)
     if res.keys()=={"IK_TEXT"}:
         await query.answer(data["init"]["dialog"]["empty_data_for_the_key"])
