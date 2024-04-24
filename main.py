@@ -27,7 +27,7 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
-data = load_json("data.json")
+data = load_json(getenv("DATA_PATH"))
 
 async def get_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -35,24 +35,25 @@ async def get_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if query_data == ':':
         keys=[]
     elif not fullmatch(r'\w+(?::\w+)*', query_data):
-        await query.answer(data["dialog"]["error_bad_callback_query"])
+        await query.answer(data["init"]["dialog"]["error_bad_callback_query"])
         return
     else:
         keys = query_data.split(':')
     res = get_value(data, keys)
     if res.keys()=={"IK_TEXT"}:
-        await query.answer(data["dialog"]["empty_data_for_the_key"])
+        await query.answer(data["init"]["dialog"]["empty_data_for_the_key"])
         return
     if not any(type(v) is dict for v in res.values()):
         try:
             res = await send_message_by_props(props=res, chat=update.effective_chat)
             await query.answer()
         except EmptyProps:
-            await query.answer(data["dialog"]["empty_data_for_the_key"])
+            await query.answer(data["init"]["dialog"]["empty_data_for_the_key"])
         return
     await query.answer()
     await edit_inline_keyboard(data=data, keys=keys, message=update.effective_message)
 
+@cache_users_data(data, update_data = lambda new_data: data.update(new_data))
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     inline_keyboard = InlineKeyboardMarkup([
         [
@@ -61,10 +62,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 callback_data=dump_query(key, code="get")
             )
         ]
-        for key in data if key!="dialog"
+        for key in data if key!="init"
     ])
     await update.effective_message.reply_text(
-        data["dialog"]["start_title"], 
+        data["init"]["dialog"]["start_title"], 
         reply_markup=inline_keyboard
     )
 

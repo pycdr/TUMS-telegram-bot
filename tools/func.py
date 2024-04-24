@@ -1,18 +1,20 @@
 import json
-from typing import List, Union, Dict, Tuple, Union
+from typing import List, Union, Dict, Tuple, Union, Callable
 from telegram import (
-    Message, Chat, 
+    Message, Chat, Update, 
     InlineKeyboardButton, InlineKeyboardMarkup, 
     InlineQueryResultArticle, InputTextMessageContent, 
     InlineQueryResultCachedDocument, 
     InputMediaDocument, InputMediaAudio, 
-    InlineQueryResultCachedAudio, 
 )
+from telegram.ext import ContextTypes
+from copy import deepcopy
+from os import getenv
 
 __all__ = [
     "get_value", "edit_inline_keyboard", "send_message_by_props", 
     "load_query", "dump_query", "EmptyProps", "load_json", 
-    "inline_query_search", 
+    "inline_query_search", "cache_users_data", 
 ]
 
 NORMALIZE_TABLE = {
@@ -42,7 +44,7 @@ def normalize_text(text: str) -> str:
     return text.translate(NORMALIZE_TABLE)
 
 class InlineQuerySearch:
-    EXCEPTION_DATA_MAIN_KEYS = ["dialog"]
+    EXCEPTION_DATA_MAIN_KEYS = ["init"]
     def __init__(self):
         pass
     def update_data(self, data: dict):
@@ -188,24 +190,24 @@ async def edit_inline_keyboard(data: Dict[str, Union[Dict, List]], keys: List[st
                 callback_data=dump_query(":".join(keys + [key]), code="get")
             )
         ]
-        for key in value if key != "IK_TEXT" and not (not keys and key=="dialog")
+        for key in value if key != "IK_TEXT" and not (not keys and key=="init")
     ]
     if not keys:
         pass
     elif len(keys)==1:
         keyboard.append([InlineKeyboardButton(
-            text=data["dialog"]["back_to_previous_menu"], 
+            text=data["init"]["dialog"]["back_to_previous_menu"], 
             callback_data=dump_query(":", code="get")
         )])
     else:
         keyboard.append([InlineKeyboardButton(
-            text=data["dialog"]["back_to_previous_menu"], 
+            text=data["init"]["dialog"]["back_to_previous_menu"], 
             callback_data=dump_query(":".join(keys[:-1]), code="get")
         )])
     inline_keyboard = InlineKeyboardMarkup(keyboard)
     await message.edit_text(
-        data["dialog"]["state_text_template"].format(path=get_path_name(data, keys))
-        if keys else data["dialog"]["start_title"], 
+        data["init"]["dialog"]["state_text_template"].format(path=get_path_name(data, keys))
+        if keys else data["init"]["dialog"]["start_title"], 
         reply_markup=inline_keyboard, 
     )
 
@@ -260,3 +262,33 @@ def load_json(path: str) -> dict:
     data = json.load(open(path))
     inline_query_search.update_data(data)
     return data
+
+def dump_json(path: str, data: str):
+    json.dump(
+        data, 
+        open(path, 'w'), 
+        ensure_ascii=False, 
+        indent='\t'
+    )
+
+USER_DATA_TEMPLATE = {
+    "first_name": "", 
+    "last_name": "", 
+    "username": "", 
+    "permissions": {}, 
+}
+def cache_users_data(data: Dict, update_data: Callable):
+    def get_function(func):
+        async def callback_wrappper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+            if update.effective_chat.id < 0:
+                return
+            user_id = str(update.effective_user.id)
+            if user_id not in data["init"]["users"]:
+                data["init"]["users"][user_id] = deepcopy(USER_DATA_TEMPLATE)
+            data["init"]["users"][user_id]["first_name"] = update.effective_user.first_name
+            data["init"]["users"][user_id]["last_name"] = update.effective_user.last_name
+            data["init"]["users"][user_id]["username"] = update.effective_user.username
+            dump_json(getenv("DATA_PATH"), data)
+            await func(update, context)
+        return callback_wrappper
+    return get_function
