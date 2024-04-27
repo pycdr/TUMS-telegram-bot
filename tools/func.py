@@ -12,34 +12,13 @@ from copy import deepcopy
 from os import getenv
 
 __all__ = [
-    "get_value", "edit_inline_keyboard", "send_message_by_props", 
+    "get_value", "generate_message_args", "send_message_by_props", 
     "load_query", "dump_query", "EmptyProps", "load_json", 
     "inline_query_search", "cache_users_data", 
     "SPLIT_CALLBACK_QUERY", 
 ]
+from .constant import *
 
-SPLIT_CALLBACK_QUERY = "=" # because of /start command, we prefer to use this character
-
-NORMALIZE_TABLE = {
-    '«': '<',
-    '»': '>',
-    '×': 'x',
-    '،': ',',
-    '؟': '?',
-    'آ': 'ا',
-    'أ': 'ا',
-    'ؤ': 'و',
-    'إ': 'ا',
-    'ئ': 'ی',
-    'ة': 'ه',
-    'ك': 'ک',
-    'ي': 'ی',
-    '٪': '%',
-    '٫': '/',
-    '٬': ',',
-    '\u200c': ' ', 
-}
-NORMALIZE_ESCAPE = {'َ', 'ٓ', 'ـ', 'ّ', 'ِ', 'ٌ', 'ٰ', 'ٔ', 'ٍ', 'ْ', 'ً', 'ُ', 'ء'}
 for escape in NORMALIZE_ESCAPE:
     NORMALIZE_TABLE[escape] = None
 NORMALIZE_TABLE = {ord(k):(ord(v) if v else None) for k,v in NORMALIZE_TABLE.items()}
@@ -184,7 +163,7 @@ def get_path_name(data: Dict[str, Union[Dict, List]], keys: List[str]) -> str:
         del keys[0]
     return '\n'.join('🔻 '+name for name in names)
 
-async def edit_inline_keyboard(data: Dict[str, Union[Dict, List]], keys: List[str], message: Message) -> None:
+def generate_message_args(data: Dict[str, Union[Dict, List]], keys: List[str]) -> Tuple[str, InlineKeyboardMarkup]:
     value = get_value(data, keys)
     keyboard = [
         [
@@ -208,10 +187,10 @@ async def edit_inline_keyboard(data: Dict[str, Union[Dict, List]], keys: List[st
             callback_data=dump_query(SPLIT_CALLBACK_QUERY.join(keys[:-1]), code="get")
         )])
     inline_keyboard = InlineKeyboardMarkup(keyboard)
-    await message.edit_text(
+    return (
         data["init"]["dialog"]["state_text_template"].format(path=get_path_name(data, keys))
         if keys else data["init"]["dialog"]["start_title"], 
-        reply_markup=inline_keyboard, 
+        inline_keyboard, 
     )
 
 async def send_message_by_props(props: Dict[str, str], chat: Chat) -> None:

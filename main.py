@@ -1,4 +1,4 @@
-import logging
+import logging, re
 from telegram import (
     Update, 
     InlineKeyboardButton, 
@@ -34,7 +34,7 @@ async def get_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query_data = load_query(query.data)
     if query_data == SPLIT_CALLBACK_QUERY:
         keys=[]
-    elif not fullmatch(fr'\w+(?:{SPLIT_CALLBACK_QUERY}\w+)*', query_data):
+    elif not fullmatch(callback_query_path_re, query_data):
         await query.answer(data["init"]["dialog"]["error_bad_callback_query"])
         return
     else:
@@ -51,23 +51,39 @@ async def get_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await query.answer(data["init"]["dialog"]["empty_data_for_the_key"])
         return
     await query.answer()
-    await edit_inline_keyboard(data=data, keys=keys, message=update.effective_message)
+    text, reply_markup = generate_message_args(data=data, keys=keys)
+    await update.effective_message.edit_text(text, reply_markup=reply_markup)
 
 @cache_users_data(data, update_data = lambda new_data: data.update(new_data))
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    inline_keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(
-                text=data[key]["IK_TEXT"], 
-                callback_data=dump_query(key, code="get")
-            )
-        ]
-        for key in data if key!="init"
-    ])
-    await update.effective_message.reply_text(
-        data["init"]["dialog"]["start_title"], 
-        reply_markup=inline_keyboard
-    )
+    match = re.match(r'\/start ('+callback_query_path_re+')', update.effective_message.text)
+    if match and match.groups():
+        path = match.groups()[0]
+        keys = path.split(SPLIT_CALLBACK_QUERY)
+        try:
+            res = get_value(data, keys)
+        except KeyError:
+            await update.effective_message.reply_text(data["init"]["dialog"]["invalid_path"])
+            return
+        if not any(type(v) is dict for v in res.values()):
+            try:
+                res = await send_message_by_props(props=res, chat=update.effective_chat)
+            except EmptyProps:
+                await update.effective_chat.send_message(data["init"]["dialog"]["empty_data_for_the_path"])
+            return
+        text, reply_markup = generate_message_args(data=data, keys=keys)
+    else:
+        text = data["init"]["dialog"]["start_title"]
+        reply_markup = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(
+                    text=data[key]["IK_TEXT"], 
+                    callback_data=dump_query(key, code="get")
+                )
+            ]
+            for key in data if key!="init"
+        ])
+    await update.effective_message.reply_text(text, reply_markup=reply_markup)
 
 async def get_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.inline_query.query
