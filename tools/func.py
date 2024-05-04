@@ -13,9 +13,9 @@ from os import getenv
 
 __all__ = [
     "get_value", "generate_message_args", "send_message_by_props", 
-    "load_query", "dump_query", "EmptyProps", "load_json", 
+    "load_query", "dump_query", "EmptyProps", "load_json", "dump_json", 
     "inline_query_search", "cache_users_data", 
-    "SPLIT_CALLBACK_QUERY", 
+    "SPLIT_CALLBACK_QUERY", "is_admin"
 ]
 from .constant import *
 
@@ -163,17 +163,32 @@ def get_path_name(data: Dict[str, Union[Dict, List]], keys: List[str]) -> str:
         del keys[0]
     return '\n'.join('🔻 '+name for name in names)
 
-def generate_message_args(data: Dict[str, Union[Dict, List]], keys: List[str]) -> Tuple[str, InlineKeyboardMarkup]:
+def generate_message_args(data: Dict[str, Union[Dict, List]], keys: List[str], is_admin: bool) -> Tuple[str, InlineKeyboardMarkup]:
     value = get_value(data, keys)
-    keyboard = [
-        [
-            InlineKeyboardButton(
-                text=value[key]["IK_TEXT"], 
-                callback_data=dump_query(SPLIT_CALLBACK_QUERY.join(keys + [key]), code="get")
-            )
+    if is_admin:
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    text=value[key]["IK_TEXT"], 
+                    callback_data=dump_query(SPLIT_CALLBACK_QUERY.join(keys + [key]), code="get")
+                ), 
+                InlineKeyboardButton(
+                    text=data["init"]["dialog"]["edit_data_inline_keyboard"], 
+                    callback_data=dump_query(SPLIT_CALLBACK_QUERY.join(keys + [key]), code="edt")
+                ), 
+            ]
+            for key in value if key != "IK_TEXT" and not (not keys and key=="init")
         ]
-        for key in value if key != "IK_TEXT" and not (not keys and key=="init")
-    ]
+    else:
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    text=value[key]["IK_TEXT"], 
+                    callback_data=dump_query(SPLIT_CALLBACK_QUERY.join(keys + [key]), code="get")
+                )
+            ]
+            for key in value if key != "IK_TEXT" and not (not keys and key=="init")
+        ]
     if not keys:
         pass
     elif len(keys)==1:
@@ -274,3 +289,6 @@ def cache_users_data(data: Dict, update_data: Callable):
             await func(update, context)
         return callback_wrappper
     return get_function
+
+def is_admin(user_id: int, mode: str, data: dict) -> bool:
+    return data["init"]["users"][str(user_id)]["permissions"].get("admin", {}).get(mode, {})

@@ -16,9 +16,7 @@ from dotenv import load_dotenv
 from os import getenv
 from re import fullmatch
 from tools import *
-from conversations import (
-    gfp_handler, 
-)
+from conversations import *
 
 load_dotenv()
 logging.basicConfig(
@@ -51,7 +49,7 @@ async def get_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await query.answer(data["init"]["dialog"]["empty_data_for_the_key"])
         return
     await query.answer()
-    text, reply_markup = generate_message_args(data=data, keys=keys)
+    text, reply_markup = generate_message_args(data=data, keys=keys, is_admin=is_admin(update.effective_user.id, "edit", data))
     await update.effective_message.edit_text(text, reply_markup=reply_markup)
 
 @cache_users_data(data, update_data = lambda new_data: data.update(new_data))
@@ -71,18 +69,33 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             except EmptyProps:
                 await update.effective_chat.send_message(data["init"]["dialog"]["empty_data_for_the_path"])
             return
-        text, reply_markup = generate_message_args(data=data, keys=keys)
+        text, reply_markup = generate_message_args(data=data, keys=keys, is_admin=is_admin(update.effective_user.id, "edit", data))
     else:
         text = data["init"]["dialog"]["start_title"]
-        reply_markup = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(
-                    text=data[key]["IK_TEXT"], 
-                    callback_data=dump_query(key, code="get")
-                )
-            ]
-            for key in data if key!="init"
-        ])
+        if is_admin(update.effective_user.id, "edit", data):
+            reply_markup = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        text=data[key]["IK_TEXT"], 
+                        callback_data=dump_query(key, code="get")
+                    ), 
+                    InlineKeyboardButton(
+                        text=data["init"]["dialog"]["edit_data_inline_keyboard"], 
+                        callback_data=dump_query(key, code="edt")
+                    )
+                ]
+                for key in data if key!="init"
+            ])
+        else:
+            reply_markup = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        text=data[key]["IK_TEXT"], 
+                        callback_data=dump_query(key, code="get")
+                    )
+                ]
+                for key in data if key!="init"
+            ])
     await update.effective_message.reply_text(text, reply_markup=reply_markup)
 
 async def get_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -102,5 +115,9 @@ if __name__ == "__main__":
     application.add_handler(CallbackQueryHandler(get_callback_query, pattern=r'get.+'))
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(gfp_handler)
+    application.add_handler(create_ed_handler(
+        data, load_query, SPLIT_CALLBACK_QUERY, 
+        lambda: dump_json(getenv("DATA_PATH"), data)
+    ))
     application.add_handler(InlineQueryHandler(get_inline_query))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
