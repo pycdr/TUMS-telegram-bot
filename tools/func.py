@@ -15,7 +15,7 @@ __all__ = [
     "get_value", "generate_message_args", "send_message_by_props", 
     "load_query", "dump_query", "EmptyProps", "load_json", "dump_json", 
     "inline_query_search", "cache_users_data", 
-    "SPLIT_CALLBACK_QUERY", "is_admin"
+    "SPLIT_CALLBACK_QUERY", "is_admin", "current_state_inline_button"
 ]
 from .constant import *
 
@@ -163,7 +163,7 @@ def get_path_name(data: Dict[str, Union[Dict, List]], keys: List[str]) -> str:
         del keys[0]
     return '\n'.join('🔻 '+name for name in names)
 
-def generate_message_args(data: Dict[str, Union[Dict, List]], keys: List[str], is_admin: bool) -> Tuple[str, InlineKeyboardMarkup]:
+def generate_message_args(data: Dict[str, Union[Dict, List]], keys: List[str], is_admin: bool, bot_username: str) -> Tuple[str, InlineKeyboardMarkup]:
     value = get_value(data, keys)
     if is_admin:
         keyboard = [
@@ -201,11 +201,19 @@ def generate_message_args(data: Dict[str, Union[Dict, List]], keys: List[str], i
             text=data["init"]["dialog"]["back_to_previous_menu"], 
             callback_data=dump_query(SPLIT_CALLBACK_QUERY.join(keys[:-1]), code="get")
         )])
+    if keys:
+        keyboard.append([current_state_inline_button(bot_username, data["init"]["dialog"]["resend_current_state_inline_button"], keys)])
     inline_keyboard = InlineKeyboardMarkup(keyboard)
     return (
         data["init"]["dialog"]["state_text_template"].format(path=get_path_name(data, keys))
         if keys else data["init"]["dialog"]["start_title"], 
         inline_keyboard, 
+    )
+
+def current_state_inline_button(bot_username: str, text: str, keys: List[str]) -> InlineKeyboardButton:
+    return InlineKeyboardButton(
+        text=text, 
+        url=f"https://t.me/{bot_username}?start={SPLIT_CALLBACK_QUERY.join(keys)}", 
     )
 
 async def send_message_by_props(props: Dict[str, str], chat: Chat) -> None:

@@ -49,7 +49,7 @@ async def get_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await query.answer(data["init"]["dialog"]["empty_data_for_the_key"])
         return
     await query.answer()
-    text, reply_markup = generate_message_args(data=data, keys=keys, is_admin=is_admin(update.effective_user.id, "edit", data))
+    text, reply_markup = generate_message_args(data=data, keys=keys, is_admin=is_admin(update.effective_user.id, "edit", data), bot_username=context.bot.username)
     await update.effective_message.edit_text(text, reply_markup=reply_markup)
 
 @cache_users_data(data, update_data = lambda new_data: data.update(new_data))
@@ -69,7 +69,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             except EmptyProps:
                 await update.effective_chat.send_message(data["init"]["dialog"]["empty_data_for_the_path"])
             return
-        text, reply_markup = generate_message_args(data=data, keys=keys, is_admin=is_admin(update.effective_user.id, "edit", data))
+        text, reply_markup = generate_message_args(data=data, keys=keys, is_admin=is_admin(update.effective_user.id, "edit", data), bot_username=context.bot.username)
     else:
         text = data["init"]["dialog"]["start_title"]
         if is_admin(update.effective_user.id, "edit", data):
