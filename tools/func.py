@@ -256,6 +256,13 @@ async def send_message_by_props(props: Dict[str, str], chat: Chat) -> None:
             for file_id, caption in zip(props["FILE_ID"], props["CAPTION"])
         ]
         await chat.send_media_group(media)
+    elif props["TYPE"] == "forward":
+        if not (props.get("CHAT_ID") and props.get("MESSAGE_ID")):
+            raise EmptyProps
+        await chat.forward_from(
+            from_chat_id=props.get("CHAT_ID"), 
+            message_id=props.get("MESSAGE_ID"), 
+        )
 
 def load_query(data: str) -> str:
     return data[3:]

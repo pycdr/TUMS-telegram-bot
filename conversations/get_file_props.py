@@ -10,13 +10,13 @@ from telegram.ext import (
 )
 from os import getenv
 
-GET_FILE = range(1)
+GET_MSG = range(1)
 
 async def start_conversation_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if int(getenv("ADMIN_ID")) != update.effective_user.id:
         return ConversationHandler.END
     await update.effective_message.reply_text("OK! send me the file, or /cancel")
-    return GET_FILE
+    return GET_MSG
 
 async def get_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     attachment = update.effective_message.effective_attachment
@@ -29,7 +29,18 @@ _caption_:`{repr(update.effective_message.caption)[1:-1] if update.effective_mes
 or /cancel", 
         parse_mode="markdown", 
     )
-    return GET_FILE
+    return GET_MSG
+
+async def get_forward_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.effective_message.reply_text(
+        text=f"\
+*forward details*:\n\
+_chat id_: `{update.message.forward_from_chat.id}`\n\
+_message id_: `{update.message.forward_from_message_id}`\n\
+or /cancel", 
+        parse_mode="markdown", 
+    )
+    return GET_MSG
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.effective_message.reply_text("✅")
@@ -41,10 +52,17 @@ gfp_handler = ConversationHandler(
         callback=start_conversation_handler, 
     )], 
     states={
-        GET_FILE: [MessageHandler(
-            filters=filters.ATTACHMENT, 
-            callback=get_file_handler, 
-        )], 
+        GET_MSG: [
+            MessageHandler(
+                filters=filters.ATTACHMENT, 
+                callback=get_file_handler, 
+            ), 
+            MessageHandler(
+                filters=filters.FORWARDED, 
+                callback=get_forward_handler, 
+            ), 
+        ], 
+        
     }, 
     fallbacks=[CommandHandler("cancel", cancel_handler)]
 )
