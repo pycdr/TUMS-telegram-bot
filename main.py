@@ -3,6 +3,7 @@ from telegram import (
     Update, 
     InlineKeyboardButton, 
     InlineKeyboardMarkup, 
+    ChatMember, 
 )
 from telegram.ext import (
     Application, 
@@ -11,6 +12,7 @@ from telegram.ext import (
     CommandHandler, 
     AIORateLimiter, 
     InlineQueryHandler, 
+    ChatMemberHandler, 
 )
 from dotenv import load_dotenv
 from os import getenv
@@ -105,6 +107,33 @@ async def get_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     results = inline_query_search.find_keywords(query)
     await update.inline_query.answer(results)
 
+async def new_chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id != int(getenv("ADMIN_ID")):
+        if update.my_chat_member.new_chat_member.status not in (ChatMember.BANNED, ChatMember.LEFT):
+            await update.effective_chat.leave()
+        return
+    after = update.my_chat_member.new_chat_member.status
+    if after == ChatMember.ADMINISTRATOR:
+        if str(update.effective_chat.id) not in data["init"]["chats"]:
+            data["init"]["chats"][str(update.effective_chat.id)] = {
+                "username": update.effective_chat.username, 
+                "title": update.effective_chat.title, 
+                "type": update.effective_chat.type, 
+                "admins": [update.effective_user.id], 
+                "strict_forward": False, 
+            }
+    elif str(update.effective_chat.id) in data["init"]["chats"]:
+        del data["init"]["chats"][str(update.effective_chat.id)]
+    dump_json(getenv("DATA_PATH"), data)
+    await update.effective_user.send_message(
+        data["init"]["dialog"]["new_chat_added_successfully"].format(
+            id = update.effective_chat.id, 
+            title = update.effective_chat.title, 
+            status = update.my_chat_member.new_chat_member.status, 
+        )
+    )
+
+
 if __name__ == "__main__":
     builder = Application.builder()
     builder.rate_limiter(AIORateLimiter())
@@ -120,4 +149,5 @@ if __name__ == "__main__":
         lambda: dump_json(getenv("DATA_PATH"), data)
     ))
     application.add_handler(InlineQueryHandler(get_inline_query))
+    application.add_handler(ChatMemberHandler(new_chat_handler, ChatMemberHandler.MY_CHAT_MEMBER))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
