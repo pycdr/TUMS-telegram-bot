@@ -259,9 +259,11 @@ async def send_message_by_props(props: Dict[str, str], chat: Chat) -> None:
     elif props["TYPE"] == "forward":
         if not (props.get("CHAT_ID") and props.get("MESSAGE_ID")):
             raise EmptyProps
-        await chat.forward_from(
+        if not isinstance(props.get("MESSAGE_ID"), list):
+            props["MESSAGE_ID"] = [props.get("MESSAGE_ID")]
+        await chat.forward_messages_from(
             from_chat_id=props.get("CHAT_ID"), 
-            message_id=props.get("MESSAGE_ID"), 
+            message_ids=props.get("MESSAGE_ID"), 
         )
 
 def load_query(data: str) -> str:
