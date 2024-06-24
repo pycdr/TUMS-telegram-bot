@@ -29,6 +29,9 @@ logger = logging.getLogger(__name__)
 
 data = load_json(getenv("DATA_PATH"))
 
+def get_chat_props(chat_id: int) -> dict:
+    return data["init"]["chats"].get(str(chat_id), {})
+
 async def get_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     query_data = load_query(query.data)
@@ -45,10 +48,17 @@ async def get_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     if not any(type(v) is dict for v in res.values()):
         try:
-            res = await send_message_by_props(props=res, chat=update.effective_chat)
+            res = await send_message_by_props(
+                props=res, 
+                chat_data=(data["init"]["chats"].get(str(res.get("CHAT_ID"))) if res.get("TYPE")=="forward" else {}), 
+                update=update, 
+                context=context, 
+            )
             await query.answer()
         except EmptyProps:
             await query.answer(data["init"]["dialog"]["empty_data_for_the_key"])
+        except NotPermitted:
+            await query.answer(data["init"]["dialog"]["not_permitted_for_the_key"])
         return
     await query.answer()
     text, reply_markup = generate_message_args(data=data, keys=keys, is_admin=is_admin(update.effective_user.id, "edit", data), bot_username=context.bot.username)
@@ -67,9 +77,16 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             return
         if not any(type(v) is dict for v in res.values()):
             try:
-                res = await send_message_by_props(props=res, chat=update.effective_chat)
+                res = await send_message_by_props(
+                    props=res, 
+                    chat_data=(data["init"]["chats"].get(str(res.get("CHAT_ID"))) if res.get("TYPE")=="forward" else {}), 
+                    update=update, 
+                    context=context, 
+                )
             except EmptyProps:
                 await update.effective_chat.send_message(data["init"]["dialog"]["empty_data_for_the_path"])
+            except NotPermitted:
+                await update.effective_chat.send_message(data["init"]["dialog"]["not_permitted_for_the_key"])
             return
         text, reply_markup = generate_message_args(data=data, keys=keys, is_admin=is_admin(update.effective_user.id, "edit", data), bot_username=context.bot.username)
     else:

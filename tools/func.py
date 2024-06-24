@@ -15,7 +15,8 @@ __all__ = [
     "get_value", "generate_message_args", "send_message_by_props", 
     "load_query", "dump_query", "EmptyProps", "load_json", "dump_json", 
     "inline_query_search", "cache_users_data", 
-    "SPLIT_CALLBACK_QUERY", "is_admin", "current_state_inline_button"
+    "SPLIT_CALLBACK_QUERY", "is_admin", "current_state_inline_button", 
+    "NotPermitted", 
 ]
 from .constant import *
 
@@ -149,6 +150,9 @@ inline_query_search = InlineQuerySearch()
 class EmptyProps(Exception):
     pass
 
+class NotPermitted(Exception):
+    pass
+
 def get_value(d: dict, keys: List[str]) -> dict:
     if keys:
         return get_value(d[keys[0]], keys[1:])
@@ -216,13 +220,13 @@ def current_state_inline_button(bot_username: str, text: str, keys: List[str]) -
         url=f"https://t.me/{bot_username}?start={SPLIT_CALLBACK_QUERY.join(keys)}", 
     )
 
-async def send_message_by_props(props: Dict[str, str], chat: Chat) -> None:
+async def send_message_by_props(props: Dict[str, str], chat_data: dict, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     props = props.copy()
     if props["TYPE"] == "document":
         if not props.get("FILE_ID"):
             raise EmptyProps
         if type(props["FILE_ID"]) is str:
-            await chat.send_document(
+            await update.effective_chat.send_document(
                 document=props["FILE_ID"], 
                 caption=props["CAPTION"], 
             )
@@ -233,18 +237,18 @@ async def send_message_by_props(props: Dict[str, str], chat: Chat) -> None:
             InputMediaDocument(media=file_id, caption=caption)
             for file_id, caption in zip(props["FILE_ID"], props["CAPTION"])
         ]
-        await chat.send_media_group(media)
+        await update.effective_chat.send_media_group(media)
     elif props["TYPE"] == "message":
         if not props.get("MESSAGE"):
             raise EmptyProps
-        await chat.send_message(
+        await update.effective_chat.send_message(
             text=props["MESSAGE"]
         )
     elif props["TYPE"] == "audio":
         if not props.get("FILE_ID"):
             raise EmptyProps
         if type(props["FILE_ID"]) is str:
-            await chat.send_audio(
+            await update.effective_chat.send_audio(
                 audio=props["FILE_ID"], 
                 caption=props["CAPTION"], 
             )
@@ -255,13 +259,19 @@ async def send_message_by_props(props: Dict[str, str], chat: Chat) -> None:
             InputMediaAudio(media=file_id, caption=caption)
             for file_id, caption in zip(props["FILE_ID"], props["CAPTION"])
         ]
-        await chat.send_media_group(media)
+        await update.effective_chat.send_media_group(media)
     elif props["TYPE"] == "forward":
         if not (props.get("CHAT_ID") and props.get("MESSAGE_ID")):
             raise EmptyProps
+        if chat_data.get("strict_forward"):
+            if (await context.bot.get_chat_member(
+                chat_id=props.get("CHAT_ID"), 
+                user_id=update.effective_user.id, 
+            )).status not in JOIN_STATUS:
+                raise NotPermitted
         if not isinstance(props.get("MESSAGE_ID"), list):
             props["MESSAGE_ID"] = [props.get("MESSAGE_ID")]
-        await chat.forward_messages_from(
+        await update.effective_chat.forward_messages_from(
             from_chat_id=props.get("CHAT_ID"), 
             message_ids=props.get("MESSAGE_ID"), 
         )
