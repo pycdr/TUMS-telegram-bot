@@ -1,5 +1,5 @@
 from telegram import (
-    Update, Document, Audio, 
+    Update, Document, Audio, Video, 
     ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, 
 )
 from telegram.ext import (
@@ -76,6 +76,8 @@ def create_get_attachment_handler(data: dict):
                 context.user_data["edit"]["type"] = "document"
             elif isinstance(attachment, Audio):
                 context.user_data["edit"]["type"] = "audio"
+            elif isinstance(attachment, Video):
+                context.user_data["edit"]["type"] = "video"
         if isinstance(attachment, (list, tuple)):
             attachment = attachment[0]
         context.user_data["edit"]["attachment"].append(attachment)
@@ -101,7 +103,7 @@ def create_change_attachment_handler(data: dict, dump_json_data: Callable):
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del context.user_data["edit"]
-    update.effective_message.reply_text("done!")
+    await update.effective_message.reply_text("done!")
     return ConversationHandler.END
 
 def create_ed_handler(
