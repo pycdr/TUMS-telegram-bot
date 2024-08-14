@@ -42,6 +42,7 @@ class InlineQuerySearch:
             for exception in self.EXCEPTION_DATA_MAIN_KEYS:
                 keys.remove(exception)
         else:
+            assert "IK_TEXT" in keys, f"IK_TEXT is not defined in {repr(data)[:100]}..."
             keys.remove("IK_TEXT")
         for key in keys:
             if not any(type(v) is dict for v in data[key].values()):
