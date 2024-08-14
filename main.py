@@ -19,6 +19,7 @@ from os import getenv
 from re import fullmatch
 from tools import *
 from conversations import *
+from typing import List
 
 load_dotenv()
 logging.basicConfig(
@@ -167,4 +168,17 @@ if __name__ == "__main__":
     ))
     application.add_handler(InlineQueryHandler(get_inline_query))
     application.add_handler(ChatMemberHandler(new_chat_handler, ChatMemberHandler.MY_CHAT_MEMBER))
+    if data["init"]["status"] == "demo":
+        def handle_get_updates(get_updates):
+            async def filter_updates(*args, **kwargs):
+                updates: List[Update] = await get_updates(*args, **kwargs)
+                result_updates = []
+                for update in updates:
+                    if not update.effective_user or update._effective_user.id == int(getenv("ADMIN_ID")):
+                        result_updates.append(update)
+                return tuple(result_updates)
+            return filter_updates
+        application.bot._unfreeze()
+        application.bot.get_updates = handle_get_updates(application.bot.get_updates)
+        application.bot._freeze()
     application.run_polling(allowed_updates=Update.ALL_TYPES)
