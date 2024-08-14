@@ -226,13 +226,15 @@ async def send_message_by_props(props: Dict[str, str], chat_data: dict, update: 
     if props["TYPE"] == "document":
         if not props.get("FILE_ID"):
             raise EmptyProps
-        if type(props["FILE_ID"]) is str:
+        if isinstance(props["FILE_ID"], str):
+            if not isinstance(props["CAPTION"], str):
+                props["CAPTION"] = props["CAPTION"][-1]
             await update.effective_chat.send_document(
                 document=props["FILE_ID"], 
                 caption=props["CAPTION"], 
             )
             return
-        if type(props["CAPTION"]) is str:
+        if isinstance(props["CAPTION"], str):
             props["CAPTION"] = ['']*(len(props["FILE_ID"])-1) + [props["CAPTION"]]
         media = [
             InputMediaDocument(media=file_id, caption=caption)
