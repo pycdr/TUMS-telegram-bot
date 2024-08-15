@@ -168,7 +168,7 @@ def get_path_name(data: Dict[str, Union[Dict, List]], keys: List[str]) -> str:
         del keys[0]
     return '\n'.join('🔻 '+name for name in names)
 
-def generate_message_args(data: Dict[str, Union[Dict, List]], keys: List[str], is_admin: bool, bot_username: str) -> Tuple[str, InlineKeyboardMarkup]:
+def generate_message_args(data: Dict[str, Union[Dict, List]], keys: List[str], is_admin: bool, bot_username: str, is_pinned: bool=False) -> Tuple[str, InlineKeyboardMarkup]:
     value = get_value(data, keys)
     if is_admin:
         keyboard = [
@@ -193,18 +193,37 @@ def generate_message_args(data: Dict[str, Union[Dict, List]], keys: List[str], i
                 )
             ]
             for key in value if key != "IK_TEXT" and not (not keys and key=="init")
+        ] + [
+            [
+                InlineKeyboardButton(
+                    text=data["init"]["dialog"]["pin_message_inline_keyboard"], 
+                    callback_data=dump_query(str(int(not is_pinned))+SPLIT_CALLBACK_QUERY.join(keys), code="pin")
+                )
+            ]
         ]
+    pin_inline_button_text = data["init"]["dialog"]["unpin_message_inline_keyboard"] if is_pinned else data["init"]["dialog"]["pin_message_inline_keyboard"]
     if not keys:
-        pass
+        keyboard.append([InlineKeyboardButton(
+            text=pin_inline_button_text, 
+            callback_data=dump_query(str(int(not is_pinned))+SPLIT_CALLBACK_QUERY, code="pin")
+        )])
     elif len(keys)==1:
         keyboard.append([InlineKeyboardButton(
             text=data["init"]["dialog"]["back_to_previous_menu"], 
             callback_data=dump_query(SPLIT_CALLBACK_QUERY, code="get")
         )])
+        keyboard.append([InlineKeyboardButton(
+            text=pin_inline_button_text, 
+            callback_data=dump_query(str(int(not is_pinned))+SPLIT_CALLBACK_QUERY.join(keys), code="pin")
+        )])
     else:
         keyboard.append([InlineKeyboardButton(
             text=data["init"]["dialog"]["back_to_previous_menu"], 
             callback_data=dump_query(SPLIT_CALLBACK_QUERY.join(keys[:-1]), code="get")
+        )])
+        keyboard.append([InlineKeyboardButton(
+            text=pin_inline_button_text, 
+            callback_data=dump_query(str(int(not is_pinned))+SPLIT_CALLBACK_QUERY.join(keys), code="pin")
         )])
     if keys:
         keyboard.append([current_state_inline_button(bot_username, data["init"]["dialog"]["resend_current_state_inline_button"], keys)])
