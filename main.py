@@ -189,8 +189,9 @@ if __name__ == "__main__":
     builder = Application.builder()
     builder.rate_limiter(AIORateLimiter())
     builder.token(getenv("TELEGRAM_BOT_TOKEN"))
-    builder.proxy(getenv("TELEGRAM_PROXY"))
-    builder.get_updates_proxy(getenv("TELEGRAM_PROXY"))
+    if getenv("TELEGRAM_PROXY"):
+        builder.proxy(getenv("TELEGRAM_PROXY"))
+        builder.get_updates_proxy(getenv("TELEGRAM_PROXY"))
     application = builder.build()
     application.add_handler(CallbackQueryHandler(get_callback_query, pattern=r'get.+'))
     application.add_handler(CallbackQueryHandler(pin_callback_query, pattern=r'pin.+'))
@@ -202,7 +203,7 @@ if __name__ == "__main__":
     ))
     application.add_handler(InlineQueryHandler(get_inline_query))
     application.add_handler(ChatMemberHandler(new_chat_handler, ChatMemberHandler.MY_CHAT_MEMBER))
-    if data["init"]["status"] == "demo":
+    if data["init"].get("status") == "demo":
         def handle_get_updates(get_updates):
             async def filter_updates(*args, **kwargs):
                 updates: List[Update] = await get_updates(*args, **kwargs)
