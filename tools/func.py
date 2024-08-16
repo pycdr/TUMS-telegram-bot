@@ -193,13 +193,6 @@ def generate_message_args(data: Dict[str, Union[Dict, List]], keys: List[str], i
                 )
             ]
             for key in value if key != "IK_TEXT" and not (not keys and key=="init")
-        ] + [
-            [
-                InlineKeyboardButton(
-                    text=data["init"]["dialog"]["pin_message_inline_keyboard"], 
-                    callback_data=dump_query(str(int(not is_pinned))+SPLIT_CALLBACK_QUERY.join(keys), code="pin")
-                )
-            ]
         ]
     pin_inline_button_text = data["init"]["dialog"]["unpin_message_inline_keyboard"] if is_pinned else data["init"]["dialog"]["pin_message_inline_keyboard"]
     if not keys:
