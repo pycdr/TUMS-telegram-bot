@@ -8,12 +8,13 @@ from telegram.ext import (
     ContextTypes, 
     filters, 
 )
-from os import getenv
+import sys; sys.path.append("..")
+from tools import ADMIN_IDS
 
 GET_MSG = range(1)
 
 async def start_conversation_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if int(getenv("ADMIN_ID")) != update.effective_user.id:
+    if update.effective_user.id not in ADMIN_IDS:
         return ConversationHandler.END
     await update.effective_message.reply_text("OK! send me the file, or /cancel")
     return GET_MSG

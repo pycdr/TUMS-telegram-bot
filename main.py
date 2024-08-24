@@ -160,7 +160,7 @@ async def get_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await update.inline_query.answer(results)
 
 async def new_chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != int(getenv("ADMIN_ID")):
+    if update.effective_user.id not in ADMIN_IDS:
         if update.my_chat_member.new_chat_member.status not in (ChatMember.BANNED, ChatMember.LEFT):
             await update.effective_chat.leave()
         return
@@ -209,7 +209,7 @@ if __name__ == "__main__":
                 updates: List[Update] = await get_updates(*args, **kwargs)
                 result_updates = []
                 for update in updates:
-                    if not update.effective_user or update._effective_user.id == int(getenv("ADMIN_ID")):
+                    if not update.effective_user or update._effective_user.id in ADMIN_IDS:
                         result_updates.append(update)
                 return tuple(result_updates)
             return filter_updates
