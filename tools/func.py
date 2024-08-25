@@ -210,10 +210,16 @@ def generate_message_args(data: Dict[str, Union[Dict, List]], keys: List[str], i
             callback_data=dump_query(str(int(not is_pinned))+SPLIT_CALLBACK_QUERY.join(keys), code="pin")
         )])
     else:
-        keyboard.append([InlineKeyboardButton(
-            text=data["init"]["dialog"]["back_to_previous_menu"], 
-            callback_data=dump_query(SPLIT_CALLBACK_QUERY.join(keys[:-1]), code="get")
-        )])
+        keyboard.append([
+            InlineKeyboardButton(
+                text=data["init"]["dialog"]["back_to_main_menu"], 
+                callback_data=dump_query(SPLIT_CALLBACK_QUERY, code="get")
+            ),
+            InlineKeyboardButton(
+                text=data["init"]["dialog"]["back_to_previous_menu"], 
+                callback_data=dump_query(SPLIT_CALLBACK_QUERY.join(keys[:-1]), code="get")
+            )
+        ])
         keyboard.append([InlineKeyboardButton(
             text=pin_inline_button_text, 
             callback_data=dump_query(str(int(not is_pinned))+SPLIT_CALLBACK_QUERY.join(keys), code="pin")
