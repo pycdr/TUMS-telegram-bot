@@ -6,8 +6,10 @@ from telegram import (
     InlineQueryResultArticle, InputTextMessageContent, 
     InlineQueryResultCachedDocument, 
     InputMediaDocument, InputMediaAudio, 
+    ChatMember
 )
 from telegram.ext import ContextTypes
+from telegram.error import TelegramError
 from copy import deepcopy
 from os import getenv
 
@@ -16,7 +18,7 @@ __all__ = [
     "load_query", "dump_query", "EmptyProps", "load_json", "dump_json", 
     "inline_query_search", "cache_users_data", 
     "SPLIT_CALLBACK_QUERY", "is_admin", "current_state_inline_button", 
-    "NotPermitted", 
+    "NotPermitted", "is_member"
 ]
 from .constant import *
 
@@ -340,3 +342,15 @@ def cache_users_data(data: Dict, update_data: Callable):
 
 def is_admin(user_id: int, mode: str, data: dict) -> bool:
     return data["init"]["users"][str(user_id)]["permissions"].get("admin", {}).get(mode, {})
+
+async def is_member(context: ContextTypes.DEFAULT_TYPE, user_id: int, chat_ids: List[int]) -> bool:
+    for chat_id in chat_ids:
+        try:
+            chat_member = await context.bot.get_chat_member(chat_id, user_id)
+            if chat_member.status in (ChatMember.LEFT, ChatMember.BANNED):
+                break
+        except TelegramError:
+            break
+    else:
+        return True
+    return False

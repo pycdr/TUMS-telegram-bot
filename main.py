@@ -56,6 +56,8 @@ async def get_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     if not any(type(v) is dict for v in res.values()):
         try:
+            if not await is_member_assertion(update, context, SPLIT_CALLBACK_QUERY.join(keys)):
+                return
             res = await send_message_by_props(
                 props=res, 
                 chat_data=(data["init"]["chats"].get(str(res.get("CHAT_ID"))) if res.get("TYPE")=="forward" else {}), 
@@ -85,6 +87,30 @@ async def pin_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE)
     text, reply_markup = generate_message_args(data=data, keys=keys, is_admin=is_admin(update.effective_user.id, "edit", data), bot_username=context.bot.username, is_pinned=pin_new_status)
     await update.effective_message.edit_text(text, reply_markup=reply_markup)
 
+async def is_member_assertion(update: Update, context: ContextTypes.DEFAULT_TYPE, path: str) -> bool:
+    if not await is_member(context, update.effective_user.id, data["init"]["chats"].get("force_join", [])):
+        await update.effective_chat.send_message(
+            data["init"]["dialog"]["force_join_message_text"], 
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton(
+                    text=data["init"]["chats"].get(str(chat_id), {}).get("title", '-'), 
+                    url=(
+                        data["init"]["chats"].get(str(chat_id), {}).get("invite_link")
+                        if data["init"]["chats"].get(str(chat_id), {}).get("invite_link")
+                        else "https://t.me/"+data["init"]["chats"].get(str(chat_id), {}).get("username")
+                    )
+                )]
+                for chat_id in data["init"]["chats"].get("force_join", [])
+            ] + [[
+                InlineKeyboardButton(
+                    text=data["init"]["dialog"]["force_join_assertion_button"], 
+                    callback_data=dump_query(path, code="get")
+                )
+            ]])
+        )
+        return False
+    return True
+
 @cache_users_data(data, update_data = lambda new_data: data.update(new_data))
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     match = re.match(r'\/start ('+callback_query_path_re+')', update.effective_message.text)
@@ -97,6 +123,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             await update.effective_message.reply_text(data["init"]["dialog"]["invalid_path"])
             return
         if not any(type(v) is dict for v in res.values()):
+            if not await is_member_assertion(update, context, path):
+                return
             try:
                 res = await send_message_by_props(
                     props=res, 
