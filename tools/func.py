@@ -9,7 +9,7 @@ from telegram import (
     ChatMember
 )
 from telegram.ext import ContextTypes
-from telegram.error import TelegramError
+from telegram.error import TelegramError, BadRequest
 from copy import deepcopy
 from os import getenv
 
@@ -18,7 +18,7 @@ __all__ = [
     "load_query", "dump_query", "EmptyProps", "load_json", "dump_json", 
     "inline_query_search", "cache_users_data", 
     "SPLIT_CALLBACK_QUERY", "is_admin", "current_state_inline_button", 
-    "NotPermitted", "is_member"
+    "NotPermitted", "is_member", "ProtectedChannelForward"
 ]
 from .constant import *
 
@@ -155,6 +155,8 @@ class EmptyProps(Exception):
 
 class NotPermitted(Exception):
     pass
+class ProtectedChannelForward(Exception):
+    pass
 
 def get_value(d: dict, keys: List[str]) -> dict:
     if keys:
@@ -248,7 +250,7 @@ async def send_message_by_props(props: Dict[str, str], chat_data: dict, update: 
             raise EmptyProps
         if isinstance(props["FILE_ID"], str):
             if not isinstance(props["CAPTION"], str):
-                props["CAPTION"] = props["CAPTION"][-1]
+                props["CAPTION"] = props["CAPTION"][-1] if props["CAPTION"] else ""
             await update.effective_chat.send_document(
                 document=props["FILE_ID"], 
                 caption=props["CAPTION"], 
@@ -286,7 +288,7 @@ async def send_message_by_props(props: Dict[str, str], chat_data: dict, update: 
     elif props["TYPE"] == "forward":
         if not (props.get("CHAT_ID") and props.get("MESSAGE_ID")):
             raise EmptyProps
-        if chat_data.get("strict_forward"):
+        if chat_data and chat_data.get("strict_forward"):
             if (await context.bot.get_chat_member(
                 chat_id=props.get("CHAT_ID"), 
                 user_id=update.effective_user.id, 
@@ -294,10 +296,16 @@ async def send_message_by_props(props: Dict[str, str], chat_data: dict, update: 
                 raise NotPermitted
         if not isinstance(props.get("MESSAGE_ID"), list):
             props["MESSAGE_ID"] = [props.get("MESSAGE_ID")]
-        await update.effective_chat.forward_messages_from(
-            from_chat_id=props.get("CHAT_ID"), 
-            message_ids=props.get("MESSAGE_ID"), 
-        )
+        try:
+            await update.effective_chat.forward_messages_from(
+                from_chat_id=props.get("CHAT_ID"), 
+                message_ids=props.get("MESSAGE_ID"), 
+            )
+        except BadRequest as err:
+            if err.message == "Message has protected content and can't be forwarded":
+                raise ProtectedChannelForward
+            else:
+                raise BadRequest(err.message)
 
 def load_query(data: str) -> str:
     return data[3:]

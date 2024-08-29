@@ -69,6 +69,8 @@ async def get_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await query.answer(data["init"]["dialog"]["empty_data_for_the_key"])
         except NotPermitted:
             await query.answer(data["init"]["dialog"]["not_permitted_for_the_key"])
+        except ProtectedChannelForward:
+            await query.answer(data["init"]["dialog"]["protected_channel_forward_for_the_key"])
         return
     await query.answer()
     pin_status = _pin_statuses.get((query.from_user.id, query.message.message_id), False)
@@ -136,6 +138,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 await update.effective_chat.send_message(data["init"]["dialog"]["empty_data_for_the_path"])
             except NotPermitted:
                 await update.effective_chat.send_message(data["init"]["dialog"]["not_permitted_for_the_key"])
+            except ProtectedChannelForward:
+                await update.effective_chat.send_message(data["init"]["dialog"]["protected_channel_forward_for_the_key"])
             return
         text, reply_markup = generate_message_args(data=data, keys=keys, is_admin=is_admin(update.effective_user.id, "edit", data), bot_username=context.bot.username)
     else:
